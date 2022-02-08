@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, User, Todo
 #from models import Person
 
 app = Flask(__name__)
@@ -20,6 +20,7 @@ db.init_app(app)
 CORS(app)
 setup_admin(app)
 
+todo_list=[]
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
@@ -30,15 +31,43 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
+@app.route('/user/<user_id>', methods=['GET'])
+def get_user(user_id):
+    user=User.query.get(user_id)
+    return jsonify(user.serialize()), 200
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
+@app.route('/user/register', methods=['POST'])
+def create_user():
+    body=request.get_json()
+    new_user=User(email=body['email'],password=body['password'])
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify(new_user.serialize()), 200
 
-    return jsonify(response_body), 200
+@app.route('/todos', methods=['GET'])
+def get_todos():
+    todo_list=[]
+    todos=Todo.query.all()
+    for todo in todos:
+        todo_list.append(todo.serialize())
+    return jsonify(todo_list),200
 
+
+@app.route('/todos',methods=['POST'])
+def add_new_todo():
+    body=request.get_json()
+    new_todo=Todo(todo=body['todo'],status=False,user_id=body['user_id'])
+    todo_list.append(new_todo.serialize())
+    db.session.add(new_todo)
+    db.session.commit()
+    return jsonify(new_todo.serialize()),200
+
+@app.route('/todos/<todo_id>',methods=['DELETE'])
+def delete_todo(todo_id):
+    Todo.query.filter(Todo.id == todo_id).delete()
+    db.session.commit()
+    return jsonify("Borrado realizado"),200
+    
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 3000))
